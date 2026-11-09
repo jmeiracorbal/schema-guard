@@ -5,6 +5,7 @@ on:
     branches: [main]
   push:
     branches: [main]
+  workflow_call:
   workflow_dispatch:
 
 permissions:
@@ -34,5 +35,14 @@ jobs:
           go-version: ${{ matrix.go }}
           cache: false
 
-      - name: Validate code
-        run: bash scripts/verify.sh
+      - name: Check formatting
+        run: test -z "$(gofmt -l .)"
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Run tests with race detector
+        run: go test -race -count=1 ./...
+
+      - name: Build
+        run: go build ./...

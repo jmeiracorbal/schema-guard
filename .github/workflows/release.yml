@@ -14,22 +14,7 @@ concurrency:
 
 jobs:
   validate:
-    name: Validate source
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache: false
-
-      - name: Validate code
-        run: bash scripts/verify.sh
+    uses: ./.github/workflows/ci.yml
 
   publish:
     name: Publish GitHub Release
@@ -38,14 +23,43 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Check out full history and tags
-        uses: actions/checkout@v7
+      - name: Validate tag and publish release
+        uses: actions/github-script@v8
         with:
-          fetch-depth: 0
-          persist-credentials: false
+          script: |
+            const { owner, repo } = context.repo;
+            const tag = context.ref.replace(/^refs\/tags\//, '');
+            const identifier = '(?:0|[1-9]\\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)';
+            const semver = new RegExp(
+              '^v(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-' +
+              identifier + '(?:\\.' + identifier + ')*)?$'
+            );
+            if (!semver.test(tag)) {
+              throw new Error(`Invalid semantic version tag: ${tag}`);
+            }
 
-      - name: Publish release for existing tag
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: bash scripts/publish-release.sh
+            const comparison = await github.rest.repos.compareCommits({
+              owner, repo, base: context.sha, head: 'main'
+            });
+            if (!['identical', 'ahead'].includes(comparison.data.status)) {
+              throw new Error(`Tagged commit is not in main: ${context.sha}`);
+            }
+
+            try {
+              await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+              core.info(`Release ${tag} already exists; nothing to publish.`);
+              return;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+
+            const created = await github.rest.repos.createRelease({
+              owner,
+              repo,
+              tag_name: tag,
+              name: tag,
+              target_commitish: context.sha,
+              prerelease: tag.includes('-'),
+              generate_release_notes: true,
+            });
+            core.info(`Published ${created.data.html_url}`);
