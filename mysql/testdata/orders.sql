@@ -1,0 +1,6 @@
+CREATE TABLE sg_orders (
+ id BIGINT NOT NULL PRIMARY KEY,
+ account_id BIGINT NOT NULL,
+ CONSTRAINT fk_orders_account FOREIGN KEY(account_id)
+ REFERENCES sg_accounts(id) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB;

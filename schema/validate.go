@@ -31,6 +31,24 @@ func (s Snapshot) Validate() error {
 }
 
 func (t Table) validate() error {
+	partitionNames := make(map[string]struct{}, len(t.Partitions))
+	partitionPositions := make(map[int]struct{}, len(t.Partitions))
+	for _, p := range t.Partitions {
+		if p.Name == "" || p.Method == "" || p.Position <= 0 {
+			return fmt.Errorf("partition must have a name, method and positive position")
+		}
+		key := p.Name + "\x00" + p.Subpartition
+		if _, ok := partitionNames[key]; ok {
+			return fmt.Errorf("duplicate partition %q", key)
+		}
+		partitionNames[key] = struct{}{}
+		number := p.Position*1000000 + p.SubpartitionPosition
+		if _, ok := partitionPositions[number]; ok {
+			return fmt.Errorf("duplicate partition position for %q", key)
+		}
+		partitionPositions[number] = struct{}{}
+	}
+
 	columns := make(map[string]struct{}, len(t.Columns))
 	positions := make(map[int]struct{}, len(t.Columns))
 	for _, c := range t.Columns {
@@ -56,6 +74,9 @@ func (t Table) validate() error {
 		}
 		indexes[i.Name] = struct{}{}
 		for _, key := range i.Columns {
+			if key.PrefixLength != nil && *key.PrefixLength <= 0 {
+				return fmt.Errorf("index %q has a nonpositive prefix length", i.Name)
+			}
 			if (key.Name == "") == (key.Expression == "") {
 				return fmt.Errorf("index %q key must have exactly one of name or expression", i.Name)
 			}
