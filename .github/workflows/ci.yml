@@ -154,3 +154,50 @@ jobs:
 
       - name: Test MariaDB metadata inspection
         run: go test -race -count=1 -tags=integration ./mariadb/...
+
+  sqlite-integration:
+    name: SQLite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Test SQLite metadata inspection
+        run: go test -mod=mod -race -count=1 -tags=integration ./sqlite/...
+
+  sqlserver-integration:
+    name: SQL Server 2022
+    runs-on: ubuntu-latest
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_SA_PASSWORD: "SgCI_S3curePass!26"
+          MSSQL_PID: Developer
+        ports:
+          - 1433:1433
+    env:
+      SCHEMA_GUARD_SQLSERVER_DSN: "sqlserver://sa:SgCI_S3curePass%2126@127.0.0.1:1433?database=master&encrypt=disable"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Test SQL Server metadata inspection
+        run: go test -mod=mod -race -count=1 -timeout=5m -tags=integration ./sqlserver/...
