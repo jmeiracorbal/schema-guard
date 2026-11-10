@@ -177,7 +177,7 @@ func inspectSchema(ctx context.Context, tx *sql.Tx, name string, result *schema.
 // Only schema-qualified identifiers are interpolated, after strict validation
 // against the active sqlite database list. Values are always bound parameters.
 func loadDefinitions(ctx context.Context, tx *sql.Tx, name string) (map[string]string, error) {
-	statement := fmt.Sprintf(query("definitions.sql"), quoteIdentifier(name))
+	statement := strings.Replace(query("definitions.sql"), "{{schema}}", quoteIdentifier(name), 1)
 	rows, err := tx.QueryContext(ctx, statement)
 	if err != nil {
 		return nil, fmt.Errorf("load definitions: %w", err)
