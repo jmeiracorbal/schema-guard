@@ -1,30 +1,52 @@
 # schema-guard
 
-`schema-guard` is a Go library for detecting structural drift between database schemas. It compares deterministic snapshots of tables, columns, indexes, and constraints without generating or executing migrations.
+`schema-guard` is a Go library for detecting structural drift between database schemas. It inspects database metadata, produces deterministic snapshots, and compares their structural state without generating or executing migrations.
 
-## Status
+## Database engines
 
-Foundation implemented: typed schema model, snapshot validation and canonicalization, SHA-256 hashing, and deterministic structural differences. Database introspection adapters and CLI commands are not yet implemented.
+- **PostgreSQL 14+**: catalog-based, read-only inspection of ordinary and partitioned tables, columns, indexes, and constraints.
+- **Planned**: MySQL, MariaDB, SQLite, and SQL Server. The typed domain and diff engine are independent of database drivers.
 
-## Planned database engines
+PostgreSQL inspection preserves native column types, defaults, generated and identity attributes, collations, table partitions, index expressions, predicates, included columns, index definitions, and native constraint definitions. Foreign keys retain referenced columns and actions. All catalog queries live in separate `.sql` files, with parameterized schema selection.
 
-PostgreSQL, MySQL, MariaDB, SQLite, and SQL Server. Each engine will be inspected through its metadata catalogs, rather than by parsing DDL with regular expressions.
+## Use as a Go library
 
-## Usage
-
-The following example compares snapshots assembled in Go. Introspection from a live database is not available yet.
+Pass an already configured `*sql.DB` with a registered PostgreSQL driver:
 
 ```go
-expected := schema.Snapshot{Version: schema.FormatVersion, Engine: schema.PostgreSQL, Tables: []schema.Table{}}
-actual := schema.Snapshot{Version: schema.FormatVersion, Engine: schema.PostgreSQL, Tables: []schema.Table{}}
-result, err := diff.Compare(expected, actual)
-if err != nil {
-    // Handle invalid or incompatible snapshots.
+import (
+    "context"
+    "database/sql"
+
+    _ "github.com/lib/pq"
+
+    "github.com/jmeiracorbal/schema-guard/postgres"
+    "github.com/jmeiracorbal/schema-guard/snapshot"
+)
+
+func inspect(ctx context.Context, db *sql.DB) (string, error) {
+    inspector, err := postgres.New(db, postgres.Options{Schemas: []string{"public"}})
+    if err != nil {
+        return "", err
+    }
+    current, err := inspector.Inspect(ctx)
+    if err != nil {
+        return "", err
+    }
+    return snapshot.Hash(current)
 }
-_ = result
 ```
 
-Imports: `github.com/jmeiracorbal/schema-guard/schema` and `github.com/jmeiracorbal/schema-guard/diff`.
+Use `diff.Compare(expected, actual)` to detect added, removed, or modified tables, columns, indexes, and constraints. Snapshots from different engines cannot be compared. The PostgreSQL adapter uses a read-only `REPEATABLE READ` transaction for a consistent capture.
+
+## Scope and limitations
+
+- Inspection is read-only. No DDL or migration operations are performed.
+- System schemas are excluded. Set `Options.Schemas` to inspect exact application schemas; missing schemas fail explicitly.
+- Views, materialized views, foreign tables, functions, triggers, policies, extensions, standalone sequences, and domain/type definitions are outside the current model. Standalone sequence drift remains a separate concern.
+- Multiple inheritance parents and invalid or in-progress indexes cause an explicit error. PostgreSQL-native index and constraint definitions preserve features that lack a common cross-engine field; they are not parsed for semantic equivalence.
+- The adapter uses PostgreSQL's deparsed expressions. Textually different but semantically equivalent expressions are not considered equal.
+- Only PostgreSQL 14 and 17 are currently covered by container-backed integration tests.
 
 ## Development
 
@@ -32,6 +54,7 @@ Requires Go 1.22 or later.
 
 ```sh
 go test ./...
+go vet ./...
 ```
 
-Canonical JSON is independent of catalog query order. Column positions and index/constraint key order are preserved because their order is meaningful. Snapshots from different database engines are not directly comparable. Native SQL expressions are compared as captured; no semantic equivalence between differently formatted expressions is implied.
+The `CI` workflow also starts PostgreSQL 14 and 17 service containers and runs the `integration`-tagged tests against each database.

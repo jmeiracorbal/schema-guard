@@ -27,11 +27,16 @@ func Canonical(input schema.Snapshot) (schema.Snapshot, error) {
 	}
 	for _, t := range input.Tables {
 		copyTable := schema.Table{
-			Schema:      t.Schema,
-			Name:        t.Name,
-			Columns:     append(make([]schema.Column, 0, len(t.Columns)), t.Columns...),
-			Indexes:     make([]schema.Index, 0, len(t.Indexes)),
-			Constraints: make([]schema.Constraint, 0, len(t.Constraints)),
+			Kind:           t.Kind,
+			Persistence:    t.Persistence,
+			Parent:         t.Parent,
+			PartitionKey:   t.PartitionKey,
+			PartitionBound: t.PartitionBound,
+			Schema:         t.Schema,
+			Name:           t.Name,
+			Columns:        append(make([]schema.Column, 0, len(t.Columns)), t.Columns...),
+			Indexes:        make([]schema.Index, 0, len(t.Indexes)),
+			Constraints:    make([]schema.Constraint, 0, len(t.Constraints)),
 		}
 		sort.Slice(copyTable.Columns, func(i, j int) bool {
 			return copyTable.Columns[i].Position < copyTable.Columns[j].Position
