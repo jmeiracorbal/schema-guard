@@ -89,6 +89,10 @@ func (t Table) validate() error {
 			if c.References == nil || c.References.Table == "" || len(c.Columns) == 0 || len(c.Columns) != len(c.References.Columns) || c.Expression != nil {
 				return fmt.Errorf("constraint %q: invalid foreign key definition", c.Name)
 			}
+		case NotNull:
+			if len(c.Columns) != 1 || c.References != nil || c.Expression != nil {
+				return fmt.Errorf("constraint %q: invalid not-null definition", c.Name)
+			}
 		case Check:
 			if c.Expression == nil || *c.Expression == "" || c.References != nil {
 				return fmt.Errorf("constraint %q: invalid check definition", c.Name)

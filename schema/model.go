@@ -27,11 +27,16 @@ type TableRef struct {
 }
 
 type Table struct {
-	Schema      string       `json:"schema"`
-	Name        string       `json:"name"`
-	Columns     []Column     `json:"columns"`
-	Indexes     []Index      `json:"indexes"`
-	Constraints []Constraint `json:"constraints"`
+	Kind           string       `json:"kind,omitempty"`
+	Persistence    string       `json:"persistence,omitempty"`
+	Parent         *TableRef    `json:"parent,omitempty"`
+	PartitionKey   *string      `json:"partition_key,omitempty"`
+	PartitionBound *string      `json:"partition_bound,omitempty"`
+	Schema         string       `json:"schema"`
+	Name           string       `json:"name"`
+	Columns        []Column     `json:"columns"`
+	Indexes        []Index      `json:"indexes"`
+	Constraints    []Constraint `json:"constraints"`
 }
 
 func (t Table) Ref() TableRef { return TableRef{Schema: t.Schema, Name: t.Name} }
@@ -55,6 +60,7 @@ type IndexColumn struct {
 }
 
 type Index struct {
+	Definition      *string       `json:"definition,omitempty"`
 	Name            string        `json:"name"`
 	Unique          bool          `json:"unique"`
 	Method          string        `json:"method"`
@@ -71,9 +77,11 @@ const (
 	UniqueKey  ConstraintType = "unique"
 	Check      ConstraintType = "check"
 	Exclusion  ConstraintType = "exclusion"
+	NotNull    ConstraintType = "not_null"
 )
 
 type Reference struct {
+	Match    string   `json:"match,omitempty"`
 	Schema   string   `json:"schema"`
 	Table    string   `json:"table"`
 	Columns  []string `json:"columns"` // key order is significant
@@ -82,6 +90,10 @@ type Reference struct {
 }
 
 type Constraint struct {
+	Definition        *string `json:"definition,omitempty"`
+	InitiallyDeferred *bool   `json:"initially_deferred,omitempty"`
+	Validated         *bool   `json:"validated,omitempty"`
+	NoInherit         bool    `json:"no_inherit,omitempty"`
 	// Name must be a stable identifier, including for unnamed native constraints.
 	Name       string         `json:"name"`
 	Type       ConstraintType `json:"type"`
