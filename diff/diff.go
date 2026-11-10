@@ -96,6 +96,12 @@ func Compare(expected, actual schema.Snapshot) (Result, error) {
 		case !hasNew:
 			result.Tables = append(result.Tables, Change[schema.Table]{Kind: Removed, Table: ref, Name: ref.Name, Before: &old})
 		default:
+			oldMetadata, newMetadata := old, newValue
+			oldMetadata.Columns, oldMetadata.Indexes, oldMetadata.Constraints = nil, nil, nil
+			newMetadata.Columns, newMetadata.Indexes, newMetadata.Constraints = nil, nil, nil
+			if !reflect.DeepEqual(oldMetadata, newMetadata) {
+				result.Tables = append(result.Tables, Change[schema.Table]{Kind: Modified, Table: ref, Name: ref.Name, Before: &old, After: &newValue})
+			}
 			result.Columns = append(result.Columns, compareNamed(ref, old.Columns, newValue.Columns, func(v schema.Column) string { return v.Name })...)
 			result.Indexes = append(result.Indexes, compareNamed(ref, old.Indexes, newValue.Indexes, func(v schema.Index) string { return v.Name })...)
 			result.Constraints = append(result.Constraints, compareNamed(ref, old.Constraints, newValue.Constraints, func(v schema.Constraint) string { return v.Name })...)

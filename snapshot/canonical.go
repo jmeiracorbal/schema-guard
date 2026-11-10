@@ -32,12 +32,23 @@ func Canonical(input schema.Snapshot) (schema.Snapshot, error) {
 			Parent:         t.Parent,
 			PartitionKey:   t.PartitionKey,
 			PartitionBound: t.PartitionBound,
+			StorageEngine:  t.StorageEngine,
+			Collation:      t.Collation,
+			RowFormat:      t.RowFormat,
+			CreateOptions:  t.CreateOptions,
+			Partitions:     append(make([]schema.Partition, 0, len(t.Partitions)), t.Partitions...),
 			Schema:         t.Schema,
 			Name:           t.Name,
 			Columns:        append(make([]schema.Column, 0, len(t.Columns)), t.Columns...),
 			Indexes:        make([]schema.Index, 0, len(t.Indexes)),
 			Constraints:    make([]schema.Constraint, 0, len(t.Constraints)),
 		}
+		sort.Slice(copyTable.Partitions, func(i, j int) bool {
+			if copyTable.Partitions[i].Position != copyTable.Partitions[j].Position {
+				return copyTable.Partitions[i].Position < copyTable.Partitions[j].Position
+			}
+			return copyTable.Partitions[i].SubpartitionPosition < copyTable.Partitions[j].SubpartitionPosition
+		})
 		sort.Slice(copyTable.Columns, func(i, j int) bool {
 			return copyTable.Columns[i].Position < copyTable.Columns[j].Position
 		})
