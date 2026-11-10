@@ -47,6 +47,17 @@ jobs:
       - name: Build
         run: go build ./...
 
+      - name: Resolve module checksums for review
+        if: matrix.go == 'stable'
+        run: |
+          go mod tidy
+          printf '%s\n' '__SCHEMA_GUARD_MOD_BEGIN__'
+          cat go.mod
+          printf '%s\n' '__SCHEMA_GUARD_MOD_END__'
+          printf '%s\n' '__SCHEMA_GUARD_SUM_BEGIN__'
+          cat go.sum
+          printf '%s\n' '__SCHEMA_GUARD_SUM_END__'
+
   postgres-integration:
     name: PostgreSQL ${{ matrix.postgres }}
     runs-on: ubuntu-latest
