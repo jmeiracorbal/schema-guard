@@ -16,43 +16,95 @@ jobs:
   validate:
     uses: ./.github/workflows/ci.yml
 
-  publish:
-    name: Publish GitHub Release
-    needs: validate
+  verify-tag:
+    name: Verify release tag
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - name: Validate tag and publish release
+      - name: Require SemVer and commit on main
         uses: actions/github-script@v8
         with:
           script: |
             const { owner, repo } = context.repo;
             const tag = context.ref.replace(/^refs\/tags\//, '');
-            const identifier = '(?:0|[1-9]\\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)';
-            const semver = new RegExp(
-              '^v(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-' +
-              identifier + '(?:\\.' + identifier + ')*)?$'
-            );
+            const numeric = '(?:0|[1-9][0-9]*)';
+            const prerelease = '(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)';
+            const semver = new RegExp(`^v${numeric}\\.${numeric}\\.${numeric}(?:-${prerelease}(?:\\.${prerelease})*)?$`);
             if (!semver.test(tag)) {
-              throw new Error(`Invalid semantic version tag: ${tag}`);
+              throw new Error(`Invalid SemVer release tag: ${tag}`);
             }
-
             const comparison = await github.rest.repos.compareCommits({
               owner, repo, base: context.sha, head: 'main'
             });
             if (!['identical', 'ahead'].includes(comparison.data.status)) {
-              throw new Error(`Tagged commit is not in main: ${context.sha}`);
+              throw new Error(`Tagged commit is not reachable from main: ${context.sha}`);
             }
 
+  image:
+    name: Publish OCI image
+    needs: [validate, verify-tag]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Define release image tags
+        id: metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=${{ github.ref_name }}
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+
+      - name: Build and push OCI image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            VERSION=${{ github.ref_name }}
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          provenance: true
+          sbom: true
+
+  publish:
+    name: Publish GitHub Release
+    needs: image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create GitHub Release
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const tag = context.ref.replace(/^refs\/tags\//, '');
             try {
               await github.rest.repos.getReleaseByTag({ owner, repo, tag });
-              core.info(`Release ${tag} already exists; nothing to publish.`);
+              core.info(`Release ${tag} already exists.`);
               return;
             } catch (error) {
               if (error.status !== 404) throw error;
             }
-
+            const image = `ghcr.io/${owner.toLowerCase()}/${repo.toLowerCase()}:${tag}`;
             const created = await github.rest.repos.createRelease({
               owner,
               repo,
@@ -61,5 +113,6 @@ jobs:
               target_commitish: context.sha,
               prerelease: tag.includes('-'),
               generate_release_notes: true,
+              body: `OCI image: \`${image}\`\n\nUse the image with the documented \`snapshot\` and \`check\` commands.`,
             });
             core.info(`Published ${created.data.html_url}`);

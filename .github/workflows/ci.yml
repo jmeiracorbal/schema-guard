@@ -47,6 +47,26 @@ jobs:
       - name: Build
         run: go build ./...
 
+  image-smoke:
+    name: OCI image smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Build OCI image
+        run: docker build --build-arg VERSION=ci -t schema-guard:ci .
+
+      - name: Verify CLI and empty SQLite database
+        run: |
+          docker run --rm schema-guard:ci version
+          docker run --rm -e SCHEMA_GUARD_DSN=file::memory: schema-guard:ci snapshot --engine sqlite
+          docker run --rm -e SCHEMA_GUARD_DSN=file::memory: \
+            -v "$GITHUB_WORKSPACE/examples:/workspace/examples:ro" \
+            schema-guard:ci check --engine sqlite --expected /workspace/examples/empty-sqlite.json --format json
+
   postgres-integration:
     name: PostgreSQL ${{ matrix.postgres }}
     runs-on: ubuntu-latest
