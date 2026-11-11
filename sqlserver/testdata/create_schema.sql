@@ -1,0 +1,1 @@
+CREATE SCHEMA schema_guard_integration;

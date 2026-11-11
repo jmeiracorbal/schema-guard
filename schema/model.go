@@ -27,6 +27,9 @@ type TableRef struct {
 }
 
 type Table struct {
+	// Definition preserves native CREATE TABLE SQL when the engine does not
+	// expose every structural property through separate catalog fields.
+	Definition     *string      `json:"definition,omitempty"`
 	Kind           string       `json:"kind,omitempty"`
 	Persistence    string       `json:"persistence,omitempty"`
 	Parent         *TableRef    `json:"parent,omitempty"`
@@ -74,6 +77,7 @@ type Column struct {
 }
 
 type IndexColumn struct {
+	Collation *string `json:"collation,omitempty"`
 	// Exactly one of Name and Expression must be populated.
 	Name         string `json:"name,omitempty"`
 	Expression   string `json:"expression,omitempty"`

@@ -14,7 +14,7 @@ func TestValidationRejectsAmbiguousMetadata(t *testing.T) {
 		want string
 	}{
 		{"unknown engine", schema.Snapshot{Version: 1, Engine: "oracle"}, "unsupported database engine"},
-		{"missing type", schema.Snapshot{Version: 1, Engine: schema.SQLite, Tables: []schema.Table{{Name: "a", Columns: []schema.Column{{Name: "id", Position: 1}}}}}, "data type"},
+		{"missing type", schema.Snapshot{Version: 1, Engine: schema.PostgreSQL, Tables: []schema.Table{{Name: "a", Columns: []schema.Column{{Name: "id", Position: 1}}}}}, "data type"},
 		{"duplicate table", schema.Snapshot{Version: 1, Engine: schema.MySQL, Tables: []schema.Table{{Name: "a"}, {Name: "a"}}}, "duplicate table"},
 		{"duplicate column ordinal", schema.Snapshot{Version: 1, Engine: schema.SQLite, Tables: []schema.Table{{Name: "a", Columns: []schema.Column{{Name: "id", Position: 1, DataType: "int"}, {Name: "x", Position: 1, DataType: "text"}}}}}, "duplicate column position"},
 		{"invalid index key", schema.Snapshot{Version: 1, Engine: schema.SQLServer, Tables: []schema.Table{{Name: "a", Indexes: []schema.Index{{Name: "idx", Columns: []schema.IndexColumn{{Name: "x", Expression: "lower(x)"}}}}}}}, "exactly one"},
@@ -28,5 +28,12 @@ func TestValidationRejectsAmbiguousMetadata(t *testing.T) {
 				t.Fatalf("wanted error containing %q, got %v", tc.want, err)
 			}
 		})
+	}
+}
+
+func TestSQLiteAllowsUntypedColumns(t *testing.T) {
+	s := schema.Snapshot{Version: 1, Engine: schema.SQLite, Tables: []schema.Table{{Schema: "main", Name: "a", Columns: []schema.Column{{Name: "anything", Position: 1}}}}}
+	if err := s.Validate(); err != nil {
+		t.Fatal(err)
 	}
 }

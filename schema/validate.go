@@ -23,14 +23,14 @@ func (s Snapshot) Validate() error {
 			return fmt.Errorf("duplicate table %q in schema %q", t.Name, t.Schema)
 		}
 		tables[ref] = struct{}{}
-		if err := t.validate(); err != nil {
+		if err := t.validate(s.Engine); err != nil {
 			return fmt.Errorf("table %q (schema %q): %w", t.Name, t.Schema, err)
 		}
 	}
 	return nil
 }
 
-func (t Table) validate() error {
+func (t Table) validate(engine Engine) error {
 	partitionNames := make(map[string]struct{}, len(t.Partitions))
 	partitionPositions := make(map[int]struct{}, len(t.Partitions))
 	for _, p := range t.Partitions {
@@ -52,8 +52,8 @@ func (t Table) validate() error {
 	columns := make(map[string]struct{}, len(t.Columns))
 	positions := make(map[int]struct{}, len(t.Columns))
 	for _, c := range t.Columns {
-		if c.Name == "" || c.DataType == "" || c.Position <= 0 {
-			return fmt.Errorf("column %q must have a name, data type and positive position", c.Name)
+		if c.Name == "" || (c.DataType == "" && engine != SQLite) || c.Position <= 0 {
+			return fmt.Errorf("column %q must have a name, supported data type and positive position", c.Name)
 		}
 		if _, ok := columns[c.Name]; ok {
 			return fmt.Errorf("duplicate column %q", c.Name)

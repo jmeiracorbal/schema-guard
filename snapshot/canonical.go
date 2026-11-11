@@ -27,6 +27,7 @@ func Canonical(input schema.Snapshot) (schema.Snapshot, error) {
 	}
 	for _, t := range input.Tables {
 		copyTable := schema.Table{
+			Definition:     t.Definition,
 			Kind:           t.Kind,
 			Persistence:    t.Persistence,
 			Parent:         t.Parent,
