@@ -43,7 +43,7 @@ jobs:
           cache: false
 
       - name: Run PostgreSQL integration tests
-        run: go test -race -count=1 -tags=integration ./postgres/...
+        run: go test -race -count=1 -tags=integration ./database/postgres/...
 
   mysql-integration:
     name: MySQL 8.4
@@ -78,7 +78,7 @@ jobs:
           cache: false
 
       - name: Test MySQL metadata inspection
-        run: go test -race -count=1 -tags=integration ./mysql/...
+        run: go test -race -count=1 -tags=integration ./database/mysql/...
 
   mariadb-integration:
     name: MariaDB 11.4
@@ -113,7 +113,7 @@ jobs:
           cache: false
 
       - name: Test MariaDB metadata inspection
-        run: go test -race -count=1 -tags=integration ./mariadb/...
+        run: go test -race -count=1 -tags=integration ./database/mariadb/...
 
   sqlite-integration:
     name: SQLite
@@ -131,7 +131,7 @@ jobs:
           cache: false
 
       - name: Test SQLite metadata inspection
-        run: go test -mod=mod -race -count=1 -tags=integration ./sqlite/...
+        run: go test -mod=mod -race -count=1 -tags=integration ./database/sqlite/...
 
   sqlserver-integration:
     name: SQL Server 2022
@@ -160,4 +160,4 @@ jobs:
           cache: false
 
       - name: Test SQL Server metadata inspection
-        run: go test -mod=mod -race -count=1 -timeout=5m -tags=integration ./sqlserver/...
+        run: go test -mod=mod -race -count=1 -timeout=5m -tags=integration ./database/sqlserver/...

@@ -16,7 +16,7 @@ import (
 	"github.com/jmeiracorbal/schema-guard/diff"
 	"github.com/jmeiracorbal/schema-guard/schema"
 	"github.com/jmeiracorbal/schema-guard/snapshot"
-	"github.com/jmeiracorbal/schema-guard/sqlite"
+	"github.com/jmeiracorbal/schema-guard/database/sqlite"
 )
 
 //go:embed testdata/*.sql

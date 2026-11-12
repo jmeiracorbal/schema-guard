@@ -6,7 +6,7 @@ import (
 	"embed"
 
 	"github.com/jmeiracorbal/schema-guard/internal/domain"
-	"github.com/jmeiracorbal/schema-guard/internal/mysqlcatalog"
+	"github.com/jmeiracorbal/schema-guard/database/internal/mysqlcatalog"
 	"github.com/jmeiracorbal/schema-guard/schema"
 )
 

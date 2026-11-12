@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/jmeiracorbal/schema-guard/mysql"
+	"github.com/jmeiracorbal/schema-guard/database/mysql"
 	"github.com/jmeiracorbal/schema-guard/schema"
 )
 
