@@ -13,10 +13,10 @@ import (
 
 	_ "github.com/microsoft/go-mssqldb"
 
+	"github.com/jmeiracorbal/schema-guard/database/sqlserver"
 	"github.com/jmeiracorbal/schema-guard/diff"
 	"github.com/jmeiracorbal/schema-guard/schema"
 	"github.com/jmeiracorbal/schema-guard/snapshot"
-	"github.com/jmeiracorbal/schema-guard/database/sqlserver"
 )
 
 //go:embed testdata/*.sql
