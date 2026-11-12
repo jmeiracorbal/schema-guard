@@ -88,6 +88,6 @@ jobs:
             -v "$GITHUB_WORKSPACE/examples:/workspace/examples:ro" \
             schema-guard:ci check --engine sqlite --expected /workspace/examples/empty-sqlite.json --format json
 
-  database-engines:
-    name: Database engine integration
-    uses: ./.github/workflows/database-engines.yml
+  engines:
+    name: Engines
+    uses: ./.github/workflows/engines.yml
