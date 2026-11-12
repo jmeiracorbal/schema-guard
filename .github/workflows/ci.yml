@@ -70,6 +70,7 @@ jobs:
 
   image-smoke:
     name: OCI image smoke test
+    needs: sqlserver-integration
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -88,16 +89,48 @@ jobs:
             -v "$GITHUB_WORKSPACE/examples:/workspace/examples:ro" \
             schema-guard:ci check --engine sqlite --expected /workspace/examples/empty-sqlite.json --format json
 
-  postgres-integration:
-    name: PostgreSQL ${{ matrix.postgres }}
+  postgres14-integration:
+    name: PostgreSQL 14
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        postgres: ['14', '17']
+    needs: [validate, static-analysis]
     services:
       postgres:
-        image: postgres:${{ matrix.postgres }}
+        image: postgres:14
+        env:
+          POSTGRES_USER: schema_guard
+          POSTGRES_PASSWORD: schema_guard_ci
+          POSTGRES_DB: schema_guard_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U schema_guard -d schema_guard_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      SCHEMA_GUARD_POSTGRES_DSN: postgres://schema_guard:schema_guard_ci@127.0.0.1:5432/schema_guard_ci?sslmode=disable
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Run PostgreSQL integration tests
+        run: go test -race -count=1 -tags=integration ./postgres/...
+
+  postgres17-integration:
+    name: PostgreSQL 17
+    runs-on: ubuntu-latest
+    needs: postgres14-integration
+    services:
+      postgres:
+        image: postgres:17
         env:
           POSTGRES_USER: schema_guard
           POSTGRES_PASSWORD: schema_guard_ci
@@ -128,6 +161,7 @@ jobs:
 
   mysql-integration:
     name: MySQL 8.4
+    needs: postgres17-integration
     runs-on: ubuntu-latest
     services:
       mysql:
@@ -163,6 +197,7 @@ jobs:
 
   mariadb-integration:
     name: MariaDB 11.4
+    needs: mysql-integration
     runs-on: ubuntu-latest
     services:
       mariadb:
@@ -198,6 +233,7 @@ jobs:
 
   sqlite-integration:
     name: SQLite
+    needs: mariadb-integration
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -216,6 +252,7 @@ jobs:
 
   sqlserver-integration:
     name: SQL Server 2022
+    needs: sqlite-integration
     runs-on: ubuntu-latest
     services:
       sqlserver:
