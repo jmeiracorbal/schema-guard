@@ -1,6 +1,7 @@
 # schema-guard
 
 [![CI](https://github.com/jmeiracorbal/schema-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/jmeiracorbal/schema-guard/actions/workflows/ci.yml)
+[![Publish](https://github.com/jmeiracorbal/schema-guard/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/jmeiracorbal/schema-guard/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 `schema-guard` is a read-only database schema drift detector written in Go. It captures deterministic schema snapshots and compares a live database against an expected snapshot committed to a repository. It does **not** generate or run database migrations.
@@ -19,7 +20,7 @@ All five adapters produce typed structural snapshots. Engines are compared only 
 
 ## Run in CI using the OCI image
 
-After a versioned release, the image is published to `ghcr.io/jmeiracorbal/schema-guard:<version>` for `linux/amd64` and `linux/arm64`. The repository/package access settings determine who can pull it.
+Every successful push to `main` publishes a new OCI image to `ghcr.io/jmeiracorbal/schema-guard:latest` and an immutable `sha-<40-character commit SHA>` tag for `linux/amd64` and `linux/arm64`. Use `:latest` to track the current validated `main` build, or the SHA tag for reproducible deployments. SemVer tags such as `v1.0.0` additionally publish `:v1.0.0` and a GitHub Release. SemVer releases are not automatically incremented on each commit. The repository/package access settings determine who can pull the image; private packages require registry authentication.
 
 Commit a canonical snapshot to your application repository and compare your running schema against it:
 
@@ -29,7 +30,7 @@ export SCHEMA_GUARD_DSN='postgres://user:password@database:5432/app?sslmode=veri
 docker run --rm --network host \
   -e SCHEMA_GUARD_DSN \
   -v "$PWD/schema:/workspace/schema:ro" \
-  ghcr.io/jmeiracorbal/schema-guard:<version> \
+  ghcr.io/jmeiracorbal/schema-guard:latest \
   check --engine postgresql --schema public \
   --expected /workspace/schema/expected.json --format json
 ```
@@ -101,7 +102,7 @@ Packages: `postgres`, `mysql`, `mariadb`, `sqlite`, `sqlserver`, `schema`, `snap
 - Concurrent DDL in MySQL and MariaDB can prevent a perfectly atomic metadata capture; avoid schema modifications during inspection.
 - SQLite retains native SQL definitions to detect changes in CHECK constraints and expression indexes where PRAGMA does not expose individual definitions.
 - SQL Server inspection requires sufficient catalog visibility (typically `VIEW DEFINITION`). Database roles and access rights remain the caller's responsibility.
-- The container image is published **only on version-tag pushes after CI succeeds**. No image is published merely by merging a pull request.
+- Pull requests only validate the code and container; they cannot publish images. A successful push to `main` publishes `:latest` and `:sha-<commit>`; SemVer tag pushes publish versioned images and a GitHub Release. Publishing is blocked when CI fails.
 
 ## Development
 
@@ -113,4 +114,4 @@ go vet ./...
 go build ./cmd/schema-guard
 ```
 
-CI validates Go, the OCI image, and real database integrations for all five supported engines. Releases are triggered by SemVer tags on commits reachable from `main`, publishing the OCI image and then the GitHub Release.
+Pull requests run formatting, module integrity, `go vet`, Staticcheck, race-enabled tests, build checks, an OCI smoke test, and database-backed integration tests for all five engines. On each push to `main`, the publishing workflow runs the same checks before pushing a new `:latest` and immutable SHA-tagged image to GHCR. SemVer tags on commits reachable from `main` publish a version-tagged image and then create a GitHub Release; tagged releases do not overwrite the `:latest` build from `main`.
