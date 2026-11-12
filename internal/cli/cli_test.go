@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"io"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/jmeiracorbal/schema-guard/schema"
+	"github.com/jmeiracorbal/schema-guard/snapshot"
 )
 
 func invoke(args []string, dsn string) (int, string, string) {
@@ -108,5 +110,32 @@ func TestVersionAndMalformedSnapshot(t *testing.T) {
 	status, _, stderr := invoke([]string{"check", "--engine", "sqlite", "--expected", file}, "file::memory:")
 	if status != ExitError || !strings.Contains(stderr, "cannot compare") {
 		t.Fatalf("cross-engine check: %d, %s", status, stderr)
+	}
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) {
+	return 0, io.ErrClosedPipe
+}
+
+func TestCheckPropagatesJSONWriteError(t *testing.T) {
+	actual := schema.Snapshot{
+		Version: schema.FormatVersion,
+		Engine:  schema.SQLite,
+		Tables:  []schema.Table{},
+	}
+	expected, err := snapshot.Marshal(actual)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "expected.json")
+	if err := os.WriteFile(path, expected, 0600); err != nil {
+		t.Fatal(err)
+	}
+	var stderr bytes.Buffer
+	status := check(actual, settings{expected: path, format: "json"}, failingWriter{}, &stderr)
+	if status != ExitError || !strings.Contains(stderr.String(), io.ErrClosedPipe.Error()) {
+		t.Fatalf("expected propagated output error; status=%d stderr=%q", status, stderr.String())
 	}
 }

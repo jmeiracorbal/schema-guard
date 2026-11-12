@@ -217,11 +217,10 @@ func check(actual schema.Snapshot, cfg settings, stdout, stderr io.Writer) int {
 		if err != nil {
 			return exitFromError(err, stderr)
 		}
-		_, err = stdout.Write(append(data, '\n'))
-	} else {
-		err = writeText(stdout, result)
-	}
-	if err != nil {
+		if _, err := stdout.Write(append(data, '\n')); err != nil {
+			return exitFromError(err, stderr)
+		}
+	} else if err := writeText(stdout, result); err != nil {
 		return exitFromError(err, stderr)
 	}
 	if result.Drift {
