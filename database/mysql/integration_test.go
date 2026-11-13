@@ -1,6 +1,6 @@
 //go:build integration
 
-package mariadb_test
+package mysql_test
 
 import (
 	"context"
@@ -11,8 +11,8 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmeiracorbal/schema-guard/database/mysql"
 	"github.com/jmeiracorbal/schema-guard/diff"
-	"github.com/jmeiracorbal/schema-guard/mariadb"
 	"github.com/jmeiracorbal/schema-guard/schema"
 	"github.com/jmeiracorbal/schema-guard/snapshot"
 )
@@ -20,10 +20,10 @@ import (
 //go:embed testdata/*.sql
 var fixtures embed.FS
 
-func TestMariaDBIntegration(t *testing.T) {
-	dsn := os.Getenv("SCHEMA_GUARD_MARIADB_DSN")
+func TestMySQLIntegration(t *testing.T) {
+	dsn := os.Getenv("SCHEMA_GUARD_MYSQL_DSN")
 	if dsn == "" {
-		t.Fatal("SCHEMA_GUARD_MARIADB_DSN must target an isolated MariaDB database")
+		t.Fatal("SCHEMA_GUARD_MYSQL_DSN must target an isolated MySQL database")
 	}
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
@@ -53,7 +53,7 @@ func TestMariaDBIntegration(t *testing.T) {
 	for _, f := range []string{"accounts.sql", "orders.sql", "partition.sql", "special_index.sql", "expression_index.sql"} {
 		fixture(t, ctx, db, f)
 	}
-	inspect, err := mariadb.New(db, mariadb.Options{Schemas: []string{name}})
+	inspect, err := mysql.New(db, mysql.Options{Schemas: []string{name}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestMariaDBIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.Engine != schema.MariaDB || len(first.Tables) != 3 {
+	if first.Engine != schema.MySQL || len(first.Tables) != 3 {
 		t.Fatalf("invalid MySQL snapshot: %+v", first)
 	}
 	accounts := table(t, first, "sg_accounts")
@@ -71,23 +71,24 @@ func TestMariaDBIntegration(t *testing.T) {
 	if col := column(t, accounts, "normalized_email"); col.Generated == nil {
 		t.Fatalf("generated metadata lost: %+v", col)
 	}
-	var hasPrefix, hasIgnored bool
+	var hasPrefix, hasInvisible, hasExpression bool
 	for _, idx := range accounts.Indexes {
 		switch idx.Name {
 		case "idx_account_prefix":
 			hasPrefix = len(idx.Columns) == 1 && idx.Columns[0].PrefixLength != nil && *idx.Columns[0].PrefixLength == 12
 		case "idx_account_state":
-			hasIgnored = idx.Visibility == "IGNORED"
-
+			hasInvisible = idx.Visibility == "INVISIBLE"
+		case "idx_account_expr":
+			hasExpression = len(idx.Columns) == 1 && idx.Columns[0].Expression != ""
 		}
 	}
-	if !hasPrefix || !hasIgnored {
+	if !hasPrefix || !hasInvisible || !hasExpression {
 		t.Fatalf("missing index metadata: %+v", accounts.Indexes)
 	}
 	verifyShared(t, ctx, db, inspect, first, name)
 }
 
-func verifyShared(t *testing.T, ctx context.Context, db *sql.DB, inspect *mariadb.Inspector, first schema.Snapshot, name string) {
+func verifyShared(t *testing.T, ctx context.Context, db *sql.DB, inspect *mysql.Inspector, first schema.Snapshot, name string) {
 	t.Helper()
 	orders := table(t, first, "sg_orders")
 	var fk bool
@@ -142,7 +143,7 @@ func verifyShared(t *testing.T, ctx context.Context, db *sql.DB, inspect *mariad
 	if !added {
 		t.Fatalf("new column not detected: %+v", change)
 	}
-	bad, err := mariadb.New(db, mariadb.Options{Schemas: []string{name + "' OR 1=1 --"}})
+	bad, err := mysql.New(db, mysql.Options{Schemas: []string{name + "' OR 1=1 --"}})
 	if err != nil {
 		t.Fatal(err)
 	}

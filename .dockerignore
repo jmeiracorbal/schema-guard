@@ -1,0 +1,7 @@
+.git
+.github
+.idea
+.vscode
+*.md
+**/*_test.go
+**/testdata

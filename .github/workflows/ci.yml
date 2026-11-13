@@ -3,8 +3,6 @@ name: CI
 on:
   pull_request:
     branches: [main]
-  push:
-    branches: [main]
   workflow_call:
   workflow_dispatch:
 
@@ -38,6 +36,9 @@ jobs:
       - name: Check formatting
         run: test -z "$(gofmt -l .)"
 
+      - name: Verify module integrity
+        run: go mod verify
+
       - name: Vet
         run: go vet ./...
 
@@ -47,116 +48,8 @@ jobs:
       - name: Build
         run: go build ./...
 
-  postgres-integration:
-    name: PostgreSQL ${{ matrix.postgres }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        postgres: ['14', '17']
-    services:
-      postgres:
-        image: postgres:${{ matrix.postgres }}
-        env:
-          POSTGRES_USER: schema_guard
-          POSTGRES_PASSWORD: schema_guard_ci
-          POSTGRES_DB: schema_guard_ci
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U schema_guard -d schema_guard_ci"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    env:
-      SCHEMA_GUARD_POSTGRES_DSN: postgres://schema_guard:schema_guard_ci@127.0.0.1:5432/schema_guard_ci?sslmode=disable
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version: stable
-          cache: false
-
-      - name: Run PostgreSQL integration tests
-        run: go test -race -count=1 -tags=integration ./postgres/...
-
-  mysql-integration:
-    name: MySQL 8.4
-    runs-on: ubuntu-latest
-    services:
-      mysql:
-        image: mysql:8.4
-        env:
-          MYSQL_DATABASE: schema_guard_ci
-          MYSQL_USER: schema_guard
-          MYSQL_PASSWORD: schema_guard_ci
-          MYSQL_ROOT_PASSWORD: schema_guard_root
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd "mysqladmin ping -h 127.0.0.1 -u schema_guard -pschema_guard_ci"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 25
-    env:
-      SCHEMA_GUARD_MYSQL_DSN: schema_guard:schema_guard_ci@tcp(127.0.0.1:3306)/schema_guard_ci?parseTime=true
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version: stable
-          cache: false
-
-      - name: Test MySQL metadata inspection
-        run: go test -race -count=1 -tags=integration ./mysql/...
-
-  mariadb-integration:
-    name: MariaDB 11.4
-    runs-on: ubuntu-latest
-    services:
-      mariadb:
-        image: mariadb:11.4
-        env:
-          MARIADB_DATABASE: schema_guard_ci
-          MARIADB_USER: schema_guard
-          MARIADB_PASSWORD: schema_guard_ci
-          MARIADB_ROOT_PASSWORD: schema_guard_root
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd "healthcheck.sh --connect --innodb_initialized"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 25
-    env:
-      SCHEMA_GUARD_MARIADB_DSN: schema_guard:schema_guard_ci@tcp(127.0.0.1:3306)/schema_guard_ci?parseTime=true
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version: stable
-          cache: false
-
-      - name: Test MariaDB metadata inspection
-        run: go test -race -count=1 -tags=integration ./mariadb/...
-
-  sqlite-integration:
-    name: SQLite
+  static-analysis:
+    name: Staticcheck (Go 1.25)
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -167,37 +60,34 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: stable
+          go-version: '1.25.x'
           cache: false
 
-      - name: Test SQLite metadata inspection
-        run: go test -mod=mod -race -count=1 -tags=integration ./sqlite/...
+      - name: Run Staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@2026.1
+          "$(go env GOPATH)/bin/staticcheck" ./...
 
-  sqlserver-integration:
-    name: SQL Server 2022
+  image-smoke:
+    name: OCI image smoke test
     runs-on: ubuntu-latest
-    services:
-      sqlserver:
-        image: mcr.microsoft.com/mssql/server:2022-latest
-        env:
-          ACCEPT_EULA: Y
-          MSSQL_SA_PASSWORD: "SgCI_S3curePass!26"
-          MSSQL_PID: Developer
-        ports:
-          - 1433:1433
-    env:
-      SCHEMA_GUARD_SQLSERVER_DSN: "sqlserver://sa:SgCI_S3curePass%2126@127.0.0.1:1433?database=master&encrypt=disable"
     steps:
       - name: Check out source
         uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version: stable
-          cache: false
+      - name: Build OCI image
+        run: docker build --build-arg VERSION=ci -t schema-guard:ci .
 
-      - name: Test SQL Server metadata inspection
-        run: go test -mod=mod -race -count=1 -timeout=5m -tags=integration ./sqlserver/...
+      - name: Verify CLI and empty SQLite database
+        run: |
+          docker run --rm schema-guard:ci version
+          docker run --rm -e SCHEMA_GUARD_DSN=file::memory: schema-guard:ci snapshot --engine sqlite
+          docker run --rm -e SCHEMA_GUARD_DSN=file::memory: \
+            -v "$GITHUB_WORKSPACE/examples:/workspace/examples:ro" \
+            schema-guard:ci check --engine sqlite --expected /workspace/examples/empty-sqlite.json --format json
+
+  engines:
+    name: Engines
+    uses: ./.github/workflows/engines.yml

@@ -1,69 +1,119 @@
 # schema-guard
 
-`schema-guard` is a Go library for detecting structural drift between database schemas. It reads database metadata, produces deterministic snapshots and compares structural state without generating or executing migrations.
+[![CI](https://github.com/jmeiracorbal/schema-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/jmeiracorbal/schema-guard/actions/workflows/ci.yml)
+[![Publish](https://github.com/jmeiracorbal/schema-guard/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/jmeiracorbal/schema-guard/actions/workflows/release.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## Supported engines
+`schema-guard` is a read-only database schema drift detector written in Go. It captures deterministic schema snapshots and compares a live database against an expected snapshot committed to a repository. It does **not** generate or run database migrations.
 
-| Engine | Catalog source | Integration CI |
+## Supported databases
+
+| Database | Metadata source | Tested version |
 | --- | --- | --- |
-| PostgreSQL 14+ | `pg_catalog` | PostgreSQL 14 and 17 |
-| MySQL 8.4 | `information_schema` | MySQL 8.4 |
-| MariaDB 11.4 | `information_schema` | MariaDB 11.4 |
-| SQLite 3.37+ | `sqlite_schema` and table-valued PRAGMA functions | SQLite integration tests |
-| SQL Server 2022+ | `sys.*` catalog views | SQL Server 2022 |
+| PostgreSQL | `pg_catalog` | 14, 17 |
+| MySQL | `information_schema` | 8.4 |
+| MariaDB | `information_schema` | 11.4 |
+| SQLite | `sqlite_schema`, `PRAGMA` | 3.37+ |
+| SQL Server | `sys.*` | 2022 |
 
-MySQL and MariaDB are separate adapters with vendor-specific SQL, while the shared metadata reader and diff engine remain database-independent.
+The five database adapters, their native catalog queries and integration fixtures live under `database/`; the shared structural model remains separate.
 
-Snapshots capture tables, columns (including native types, defaults, generated attributes, collations and character sets), indexes (including key order, prefix lengths and engine-specific visibility), constraints (including referenced keys and foreign-key actions), and partition metadata. Catalog queries reside in embedded `.sql` files; schema selection is parameterized, not interpolated into identifiers. Snapshots from different engines are intentionally not compared.
+All five adapters produce typed structural snapshots. Engines are compared only with snapshots from the **same** database engine. Queries are held in separate `.sql` files, with no regex DDL parser or cross-engine translation.
+
+## Run in CI using the OCI image
+
+Every successful push to `main` publishes a new OCI image to `ghcr.io/jmeiracorbal/schema-guard:latest` and an immutable `sha-<40-character commit SHA>` tag for `linux/amd64` and `linux/arm64`. Use `:latest` to track the current validated `main` build, or the SHA tag for reproducible deployments. SemVer tags such as `v1.0.0` additionally publish `:v1.0.0` and a GitHub Release. SemVer releases are not automatically incremented on each commit. The repository/package access settings determine who can pull the image; private packages require registry authentication.
+
+Commit a canonical snapshot to your application repository and compare your running schema against it:
+
+```sh
+export SCHEMA_GUARD_DSN='postgres://user:password@database:5432/app?sslmode=verify-full'
+
+docker run --rm --network host \
+  -e SCHEMA_GUARD_DSN \
+  -v "$PWD/schema:/workspace/schema:ro" \
+  ghcr.io/jmeiracorbal/schema-guard:latest \
+  check --engine postgresql --schema public \
+  --expected /workspace/schema/expected.json --format json
+```
+
+In GitHub Actions, load `SCHEMA_GUARD_DSN` from a repository secret, expose the expected file with a read-only mount, and execute this command in a job. The image has no shell, runs as a non-root user, and includes certificates for TLS connections. Use a database account with only the metadata permissions the engine requires. For a remote database, omit `--network host` when normal container networking can reach it. On Linux runners, `--network host` permits connections to services bound on the runner's loopback interface.
+
+### Exit codes
+
+| Exit | Meaning |
+| --- | --- |
+| `0` | Inspection succeeded; no differences (or snapshot captured) |
+| `1` | Invalid arguments, connection failure, invalid snapshot or other error |
+| `2` | Structural drift found |
+
+A workflow step normally fails on exit `2`. With `--format json`, `check` emits stable keys: `drift`, `change_count`, `expected_sha256`, `actual_sha256`, and typed `changes` (before/after values).
+
+## CLI usage
+
+The command-line tool is available inside the OCI image, or directly from source:
+
+```sh
+go run ./cmd/schema-guard version
+```
+
+Capture the approved state. Database credentials are read **only** from `SCHEMA_GUARD_DSN`, not from command-line arguments:
+
+```sh
+schema-guard snapshot --engine postgresql --schema public --output schema/expected.json
+schema-guard check --engine postgresql --schema public --expected schema/expected.json --format text
+```
+
+Without `--output`, `snapshot` prints canonical JSON to standard output. `--schema` is repeatable; defaults depend on the engine (SQLite uses `main`). `check` accepts `--format text` (default) or `--format json`. Both commands accept `--timeout` (default `2m`). File snapshots are written atomically with restrictive permissions. For SQLite, use a read-only URI such as `file:/workspace/data/app.sqlite?mode=ro`; mount the database directory read-only.
+
+For other engines, supply their native driver DSNs through `SCHEMA_GUARD_DSN`: MySQL/MariaDB (`go-sql-driver/mysql` format), SQLite (`modernc.org/sqlite` URI), SQL Server (`go-mssqldb` URL), or PostgreSQL (`lib/pq` URL). Never commit database credentials or embed them in snapshots.
 
 ## Go library
 
-Supply a configured `*sql.DB` and a registered database driver:
+The adapters can also be used directly with an existing `*sql.DB` and a registered database driver:
 
 ```go
 import (
     "context"
     "database/sql"
 
-    "github.com/jmeiracorbal/schema-guard/mysql"
-    "github.com/jmeiracorbal/schema-guard/snapshot"
+    "github.com/jmeiracorbal/schema-guard/diff"
+    "github.com/jmeiracorbal/schema-guard/database/postgres"
+    "github.com/jmeiracorbal/schema-guard/schema"
 )
 
-func capture(ctx context.Context, db *sql.DB) (string, error) {
-    inspector, err := mysql.New(db, mysql.Options{Schemas: []string{"app"}})
-    if err != nil { return "", err }
-    current, err := inspector.Inspect(ctx)
-    if err != nil { return "", err }
-    return snapshot.Hash(current)
+func compare(ctx context.Context, db *sql.DB, expected schema.Snapshot) (diff.Result, error) {
+    inspector, err := postgres.New(db, postgres.Options{Schemas: []string{"public"}})
+    if err != nil {
+        return diff.Result{}, err
+    }
+    actual, err := inspector.Inspect(ctx)
+    if err != nil {
+        return diff.Result{}, err
+    }
+    return diff.Compare(expected, actual)
 }
 ```
 
-Import `github.com/jmeiracorbal/schema-guard/mariadb`, `/postgres`, `/sqlite` or `/sqlserver` to inspect those engines. SQLite defaults to the `main` database and supports named attached databases through `Options.Schemas`. SQL Server selects all application schemas by default, or those listed in `Options.Schemas`. Use `diff.Compare(expected, actual)` to report additions, removals and modifications. The adapters use read-only transactions; they never execute DDL or migrations.
-
-## Use case: CI and containerized workflows
-
-A target use case is running `schema-guard` as an OCI image in CI/CD workflows of other projects: capture the target database schema, compare it with an expected snapshot stored alongside application code, publish a structured drift report and fail the job when unexpected differences are found. This can detect manual schema edits outside the migration process before a deployment.
-
-**This is a planned deployment mode, not yet a published image or runnable command.** A CLI, exit-code contract and image build/publishing pipeline will be implemented separately; the current deliverable is the reusable Go library.
+Database adapters: `database/postgres`, `database/mysql`, `database/mariadb`, `database/sqlite`, and `database/sqlserver`. Shared packages: `schema`, `snapshot`, and `diff`.
 
 ## Limitations
 
-- Only structural metadata is compared. Rows and estimated statistics are not part of snapshots.
-- System schemas and views are excluded. Explicitly selected unknown schemas cause an error; users must have sufficient metadata visibility for their target schemas.
-- A transaction provides a consistent connection and read-only access, but MySQL and MariaDB metadata reads are **not guaranteed to form an atomic snapshot during concurrent DDL**. Avoid schema changes while inspecting.
-- Functions, triggers, policies, standalone sequences, routines, events and views are outside the current model.
-- SQLite does not enumerate named CHECK constraints or expression-index keys through PRAGMA. Its adapter retains the native `sqlite_schema.sql` definitions in canonical snapshots to detect these changes, but does not report CHECK constraints as individually named objects. SQLite virtual/shadow tables are explicitly unsupported.
-- SQL Server 2022 inspection covers ordinary tables, columns (identity and computed), rowstore indexes, PK/UNIQUE/CHECK/FK constraints and referential actions. Unsupported specialized structures (e.g., temporal, graph, memory-optimized or ledger tables, columnstore indexes and unusual physical index options) fail explicitly rather than silently losing metadata.
-- SQL Server inspection reads catalog views in a `REPEATABLE READ` transaction, issuing no DDL; use a database principal with VIEW DEFINITION permission. SQLite inspection uses a single read transaction; open the database in read-only mode for enforcement.
-- The engine-specific SQL and expressions are preserved without attempting to infer semantic equivalence. Complex vendor-specific features not represented by catalog fields are not silently translated into another engine's semantics.
+- Only structural metadata is inspected; no row data, procedures, views, triggers, events, policies, or standalone sequences. Unsupported specialized structures fail explicitly where detected.
+- Schema comparison is not a migration planner. Snapshot comparison does not establish semantic equivalence of different native SQL expressions.
+- Concurrent DDL in MySQL and MariaDB can prevent a perfectly atomic metadata capture; avoid schema modifications during inspection.
+- SQLite retains native SQL definitions to detect changes in CHECK constraints and expression indexes where PRAGMA does not expose individual definitions.
+- SQL Server inspection requires sufficient catalog visibility (typically `VIEW DEFINITION`). Database roles and access rights remain the caller's responsibility.
+- Pull requests only validate the code and container; they cannot publish images. A successful push to `main` publishes `:latest` and `:sha-<commit>`; SemVer tag pushes publish versioned images and a GitHub Release. Publishing is blocked when CI fails.
 
 ## Development
 
 Requires Go 1.22 or later.
 
 ```sh
-go test ./...
+go test -race -count=1 ./...
 go vet ./...
+go build ./cmd/schema-guard
 ```
 
-GitHub Actions runs race-enabled Go tests and database-backed integration tests against PostgreSQL 14/17, MySQL 8.4, MariaDB 11.4, SQLite, and SQL Server 2022. No Bash helper scripts are required.
+Pull requests trigger one CI workflow covering formatting, module integrity, `go vet`, Staticcheck, race-enabled tests, an OCI smoke test, and the reusable **Engines** workflow. The database engines (PostgreSQL 14/17, MySQL 8.4, MariaDB 11.4, SQLite and SQL Server 2022) run in parallel. The CI workflow fails if **any** engine fails, and GHCR publishing can only start after the entire CI workflow passes. On each push to `main`, the publishing workflow runs the same checks before pushing a new `:latest` and immutable SHA-tagged image to GHCR. SemVer tags on commits reachable from `main` publish a version-tagged image and then create a GitHub Release; tagged releases do not overwrite the `:latest` build from `main`.
