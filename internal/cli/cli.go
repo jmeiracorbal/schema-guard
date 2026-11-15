@@ -3,7 +3,7 @@ package cli
 
 import (
 	"context"
-	"engines/sql"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -19,12 +19,12 @@ import (
 	_ "github.com/microsoft/go-mssqldb"
 	_ "modernc.org/sqlite"
 
+	"github.com/jmeiracorbal/schema-guard/diff"
 	"github.com/jmeiracorbal/schema-guard/engines/mariadb"
 	"github.com/jmeiracorbal/schema-guard/engines/mysql"
 	"github.com/jmeiracorbal/schema-guard/engines/postgres"
 	"github.com/jmeiracorbal/schema-guard/engines/sqlite"
 	"github.com/jmeiracorbal/schema-guard/engines/sqlserver"
-	"github.com/jmeiracorbal/schema-guard/diff"
 	"github.com/jmeiracorbal/schema-guard/schema"
 	"github.com/jmeiracorbal/schema-guard/snapshot"
 )

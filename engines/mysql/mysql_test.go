@@ -1,7 +1,7 @@
 package mysql_test
 
 import (
-	"engines/sql"
+	"database/sql"
 	"testing"
 
 	"github.com/jmeiracorbal/schema-guard/engines/mysql"

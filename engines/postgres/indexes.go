@@ -2,7 +2,7 @@ package postgres
 
 import (
 	"context"
-	"engines/sql"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 

@@ -3,7 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
-	"engines/sql"
+	"database/sql"
 	"encoding/json"
 	"io"
 	"os"

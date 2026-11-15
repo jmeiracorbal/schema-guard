@@ -1,7 +1,7 @@
 package postgres
 
 import (
-	"engines/sql"
+	"database/sql"
 	"testing"
 
 	"github.com/jmeiracorbal/schema-guard/schema"

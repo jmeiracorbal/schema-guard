@@ -75,7 +75,7 @@ The adapters can also be used directly with an existing `*sql.DB` and a register
 ```go
 import (
     "context"
-    "engines/sql"
+    "database/sql"
 
     "github.com/jmeiracorbal/schema-guard/diff"
     "github.com/jmeiracorbal/schema-guard/engines/postgres"

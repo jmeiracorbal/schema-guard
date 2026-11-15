@@ -2,7 +2,7 @@ package sqlite
 
 import (
 	"context"
-	"engines/sql"
+	"database/sql"
 	"fmt"
 
 	"github.com/jmeiracorbal/schema-guard/schema"

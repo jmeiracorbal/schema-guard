@@ -2,7 +2,7 @@ package mysqlcatalog
 
 import (
 	"context"
-	"engines/sql"
+	"database/sql"
 	"fmt"
 	"strings"
 

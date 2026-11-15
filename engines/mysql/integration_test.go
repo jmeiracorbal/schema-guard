@@ -4,15 +4,15 @@ package mysql_test
 
 import (
 	"context"
-	"engines/sql"
+	"database/sql"
 	"embed"
 	"os"
 	"testing"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/jmeiracorbal/schema-guard/engines/mysql"
 	"github.com/jmeiracorbal/schema-guard/diff"
+	"github.com/jmeiracorbal/schema-guard/engines/mysql"
 	"github.com/jmeiracorbal/schema-guard/schema"
 	"github.com/jmeiracorbal/schema-guard/snapshot"
 )

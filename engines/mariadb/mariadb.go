@@ -2,7 +2,7 @@
 package mariadb
 
 import (
-	"engines/sql"
+	"database/sql"
 	"embed"
 
 	"github.com/jmeiracorbal/schema-guard/engines/internal/mysqlcatalog"

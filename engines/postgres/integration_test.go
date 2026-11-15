@@ -4,7 +4,7 @@ package postgres_test
 
 import (
 	"context"
-	"engines/sql"
+	"database/sql"
 	"embed"
 	"os"
 	"strings"
@@ -13,8 +13,8 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"github.com/jmeiracorbal/schema-guard/engines/postgres"
 	"github.com/jmeiracorbal/schema-guard/diff"
+	"github.com/jmeiracorbal/schema-guard/engines/postgres"
 	"github.com/jmeiracorbal/schema-guard/schema"
 	"github.com/jmeiracorbal/schema-guard/snapshot"
 )

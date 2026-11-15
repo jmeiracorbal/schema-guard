@@ -4,7 +4,7 @@ package sqlite
 
 import (
 	"context"
-	"engines/sql"
+	"database/sql"
 	"embed"
 	"fmt"
 	"sort"

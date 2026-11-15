@@ -5,7 +5,7 @@ package postgres
 
 import (
 	"context"
-	"engines/sql"
+	"database/sql"
 	"embed"
 	"encoding/json"
 	"fmt"
