@@ -55,7 +55,7 @@ func New(db *sql.DB, opts Options) (*Inspector, error) {
 func (*Inspector) Engine() schema.Engine { return schema.SQLite }
 
 // Inspect acquires one connection and a transaction so that all PRAGMA reads
-// share the same consistent SQLite read snapshot. The supplied database/sql
+// share the same consistent SQLite read snapshot. The supplied engines/sql
 // driver and connection determine whether the database is opened read-only.
 func (i *Inspector) Inspect(ctx context.Context) (schema.Snapshot, error) {
 	tx, err := i.db.BeginTx(ctx, nil)

@@ -1,5 +1,5 @@
 // Package postgres reads PostgreSQL structural metadata from pg_catalog.
-// The caller supplies a database/sql connection and registers its own SQL driver.
+// The caller supplies a engines/sql connection and registers its own SQL driver.
 // No data definition or migration statements are executed by the inspector.
 package postgres
 

@@ -13,8 +13,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/jmeiracorbal/schema-guard/database/sqlite"
 	"github.com/jmeiracorbal/schema-guard/diff"
+	"github.com/jmeiracorbal/schema-guard/engines/sqlite"
 	"github.com/jmeiracorbal/schema-guard/schema"
 	"github.com/jmeiracorbal/schema-guard/snapshot"
 )

@@ -16,7 +16,7 @@
 | SQLite | `sqlite_schema`, `PRAGMA` | 3.37+ |
 | SQL Server | `sys.*` | 2022 |
 
-The five database adapters, their native catalog queries and integration fixtures live under `database/`; the shared structural model remains separate.
+The five database adapters, their native catalog queries and integration fixtures live under `engines/`; the shared structural model remains separate.
 
 All five adapters produce typed structural snapshots. Engines are compared only with snapshots from the **same** database engine. Queries are held in separate `.sql` files, with no regex DDL parser or cross-engine translation.
 
@@ -78,7 +78,7 @@ import (
     "database/sql"
 
     "github.com/jmeiracorbal/schema-guard/diff"
-    "github.com/jmeiracorbal/schema-guard/database/postgres"
+    "github.com/jmeiracorbal/schema-guard/engines/postgres"
     "github.com/jmeiracorbal/schema-guard/schema"
 )
 
@@ -95,7 +95,7 @@ func compare(ctx context.Context, db *sql.DB, expected schema.Snapshot) (diff.Re
 }
 ```
 
-Database adapters: `database/postgres`, `database/mysql`, `database/mariadb`, `database/sqlite`, and `database/sqlserver`. Shared packages: `schema`, `snapshot`, and `diff`.
+Database adapters: `engines/postgres`, `engines/mysql`, `engines/mariadb`, `engines/sqlite`, and `engines/sqlserver`. Shared packages: `schema`, `snapshot`, and `diff`.
 
 ## Limitations
 
